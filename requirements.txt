@@ -5,3 +5,6 @@ bcrypt
 PyJWT
 botocore
 python-dotenv
+face_recognition
+opencv-python
+numpy

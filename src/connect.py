@@ -5,7 +5,9 @@ from datetime import datetime, timedelta
 import jwt
 import os
 from dotenv import load_dotenv
-
+from decimal import Decimal
+import face_recognition
+import numpy as np
 load_dotenv()
 
 def connect_to_dynamodb():
@@ -54,6 +56,42 @@ def create_users_table(db):
         else:
             print(f"Error checking table existence: {e}")
             return None
+def save_face_encoding(table, email, face_encoding):
+    try:
+        print(f"Attempting to save face encoding for {email}")
+        
+        # Convertir le numpy array en liste de Decimal
+        face_encoding_list = [Decimal(str(x)) for x in face_encoding.tolist()]
+        
+        table.update_item(
+            Key={'email': email},
+            UpdateExpression='SET face_encoding = :enc',
+            ExpressionAttributeValues={
+                ':enc': face_encoding_list
+            }
+        )
+        print("Face encoding saved successfully")
+        return True
+    except Exception as e:
+        print(f"Error saving face encoding: {e}")
+        return False
+
+# Il faut aussi modifier la fonction verify_face pour reconvertir les Decimal en float
+def verify_face(table, email, face_encoding_to_verify):
+    try:
+        response = table.get_item(Key={'email': email})
+        if 'Item' not in response or 'face_encoding' not in response['Item']:
+            print("No face encoding found for this user")
+            return False
+            
+        # Convertir les Decimal en float pour la comparaison
+        stored_encoding = np.array([float(x) for x in response['Item']['face_encoding']])
+        result = face_recognition.compare_faces([stored_encoding], face_encoding_to_verify, tolerance=0.2)[0]
+        print(f"Face verification result: {result}")
+        return result
+    except Exception as e:
+        print(f"Error verifying face: {e}")
+        return False 
 
 def add_user(table, email, password):
     try:
@@ -91,7 +129,7 @@ def logout_user(table, email):
         print(f"Error during logout: {e}")
         return False
     
-def login_user(table, email, password):
+def login_user(table, email, password=None, face_auth=False):
     try:
         # Récupérer l'utilisateur
         response = table.get_item(Key={'email': email})
@@ -102,12 +140,16 @@ def login_user(table, email, password):
             return None
 
         user = response['Item']
-        stored_password = user['password'].encode('utf-8')
-        
-        # Vérifier le mot de passe
-        if not bcrypt.checkpw(password.encode('utf-8'), stored_password):
-            print("Invalid password")
-            return None
+
+        if not face_auth:
+            if not password:
+                print("Password required for non-face auth")
+                return None
+                
+            stored_password = user['password'].encode('utf-8')
+            if not bcrypt.checkpw(password.encode('utf-8'), stored_password):
+                print("Invalid password")
+                return None
 
         # Générer le JWT token
         token = generate_jwt_token(email)

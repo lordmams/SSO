@@ -74,11 +74,100 @@
                 <label for="confirm_password">Confirmer le mot de passe:</label>
                 <input type="password" id="confirm_password" name="confirm_password" required>
             </div>
-            <button type="submit">S'inscrire</button>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="useFaceAuth" name="use_face_auth"> 
+                    Activer l'authentification faciale
+                </label>
+            </div>
+            <div id="faceAuthSection" class="video-container" style="display: none;">
+                <video id="video" width="400" height="300" autoplay></video>
+                <canvas id="canvas" width="400" height="300" style="display: none;"></canvas>
+                <br>
+                <button type="button" id="captureButton" class="capture-button">Capturer le visage</button>
+                <p id="captureStatus"></p>
+            </div>
+
+            <input type="hidden" id="faceEncoding" name="face_encoding">
+            <button type="submit"  id="submitButton">S'inscrire</button>
         </form>
         <div class="login-link">
             <p>Déjà un compte? <a href="/login">Se connecter</a></p>
         </div>
     </div>
 </body>
+
+<script>
+    let video = document.getElementById('video');
+    let canvas = document.getElementById('canvas');
+    let captureButton = document.getElementById('captureButton');
+    let useFaceAuth = document.getElementById('useFaceAuth');
+    let faceAuthSection = document.getElementById('faceAuthSection');
+    let captureStatus = document.getElementById('captureStatus');
+    let faceEncoding = document.getElementById('faceEncoding');
+    let submitButton = document.getElementById('submitButton');
+
+    useFaceAuth.addEventListener('change', function() {
+        faceAuthSection.style.display = this.checked ? 'block' : 'none';
+        if (this.checked) {
+            startVideo();
+            submitButton.disabled = true;
+        } else {
+            stopVideo();
+            submitButton.disabled = false;
+        }
+    });
+
+    function startVideo() {
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                video.srcObject = stream;
+                video.play();
+            })
+            .catch(err => {
+                console.error("Error: " + err);
+                captureStatus.textContent = "Erreur d'accès à la caméra";
+            });
+    }
+
+    function stopVideo() {
+        if (video.srcObject) {
+            video.srcObject.getTracks().forEach(track => track.stop());
+        }
+        video.style.display = 'none';
+    }
+
+    captureButton.addEventListener('click', function() {
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            let imageData = canvas.toDataURL('image/jpeg');
+            
+            // Envoyer l'image pour vérification et encodage
+            fetch('/verify-face', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    image: imageData
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    captureStatus.textContent = "Visage capturé avec succès !";
+                    captureStatus.style.color = "green";
+                    submitButton.disabled = false;
+                    stopVideo();
+                } else {
+                    captureStatus.textContent = "Aucun visage détecté, veuillez réessayer";
+                    captureStatus.style.color = "red";
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                captureStatus.textContent = "Erreur lors de la capture";
+                captureStatus.style.color = "red";
+            });
+        });
+    </script>
 </html>

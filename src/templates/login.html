@@ -57,11 +57,85 @@
                 <label for="password">Mot de passe:</label>
                 <input type="password" id="password" name="password" required>
             </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="useFaceAuth" name="use_face_auth"> 
+                    Utiliser l'authentification faciale
+                </label>
+            </div>
             <button type="submit">Se connecter</button>
         </form>
+        <div id="faceAuthSection" style="display: none;">
+            <video id="video" width="400" height="300" style="display: none;"></video>
+            <canvas id="canvas" width="400" height="300" style="display: none;"></canvas>
+            <button id="captureButton">Capturer</button>
+        </div>
         <div class="login-link">
             <p>Pas encore de compte? <a href="/register">S'inscrire</a></p>
         </div>
     </div>
 </body>
 </html>
+
+<script>
+    let video = document.getElementById('video');
+    let canvas = document.getElementById('canvas');
+    let captureButton = document.getElementById('captureButton');
+    let useFaceAuth = document.getElementById('useFaceAuth');
+    let faceAuthSection = document.getElementById('faceAuthSection');
+    
+    useFaceAuth.addEventListener('change', function() {
+        faceAuthSection.style.display = this.checked ? 'block' : 'none';
+        if (this.checked) {
+            startVideo();
+        } else {
+            stopVideo();
+        }
+    });
+    
+    function startVideo() {
+        video.style.display = 'block';
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                video.srcObject = stream;
+                video.play();
+            })
+            .catch(err => {
+                console.error("Error: " + err);
+            });
+    }
+    
+    function stopVideo() {
+        video.style.display = 'none';
+        if (video.srcObject) {
+            video.srcObject.getTracks().forEach(track => track.stop());
+        }
+    }
+    captureButton.addEventListener('click', function() {
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    let imageData = canvas.toDataURL('image/jpeg');
+    
+    fetch('/login/face', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            email: document.getElementById('email').value,
+            image: imageData
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = data.redirect;  
+        }  else {
+            alert('Échec de l\'authentification faciale');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Erreur lors de l\'authentification');
+    });
+});
+</script>
