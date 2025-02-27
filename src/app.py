@@ -70,7 +70,7 @@ def register():
             return jsonify({'error': 'Database connection failed'}), 500
             
         users_table = db.Table('Users')
-        
+        #test
         if add_user(users_table, email, password):
              return redirect(url_for('login'))    
     return render_template('register.html')
