@@ -1,0 +1,7 @@
+flask
+lifxlan
+boto3
+bcrypt
+PyJWT
+botocore
+python-dotenv
